@@ -1,11 +1,11 @@
 #pragma once
 #include "island.hpp"
-#include <map>
+#include <map.hpp>
 
 class World 
 {
 private:
-    std::map<int, Island> islands;
+    Designar::TreeMap<int, Island> islands;
     int current_island_id;
 
 public:

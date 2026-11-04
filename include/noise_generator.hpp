@@ -1,6 +1,6 @@
 # pragma once
 
-#include <vector>
+#include <array.hpp>
 #include <random>
 #include <algorithm>
 
@@ -9,7 +9,7 @@ class noise_generator
 {
 private:
     std::mt19937 rng;
-    std::vector<int> permutation;
+    Designar::DynArray<int> permutation;
 
     float fade_function(float t);
     float linear_interpolation(float t, float a, float b);

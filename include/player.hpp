@@ -12,13 +12,13 @@ private:
     float speed;                // Velocidad (píxeles por segundo)
     float radius;               // Radio del círculo
     bool can_walk;              // Para saber cuándo está sobre agua/cielo
-    bool is_valid_position(float x, float y, const height_map& map, float tile_size, const std::vector<Prop>& props);
+    bool is_valid_position(float x, float y, const height_map& map, float tile_size, const Designar::DynArray<Prop>& props);
     
 public:
     player(float x, float y);
     
     // Actualizar posición según input y colisiones
-    void update(float deltaTime, const height_map& map, float tile_size, const std::vector<Prop>& props);
+    void update(float deltaTime, const height_map& map, float tile_size, const Designar::DynArray<Prop>& props);
     void set_position(sf::Vector2f new_pos);
     // Dibujar en la ventana
     void draw(sf::RenderWindow& window);

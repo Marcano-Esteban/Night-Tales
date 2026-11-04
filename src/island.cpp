@@ -18,5 +18,5 @@ void Island::generate()
 
 void Island::add_portal(sf::Vector2f pos, int target_id, sf::Vector2f spawn_pos) 
 {
-    portals.push_back({pos, 60.0f, target_id, spawn_pos}); // Radio de 60 unidades
+    portals.append({pos, 60.0f, target_id, spawn_pos}); // Radio de 60 unidades
 }

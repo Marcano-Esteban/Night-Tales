@@ -217,23 +217,22 @@ void terrain_generator::generate_props(float tile_size)
             float world_x = (x - _height_map.width / 2.0f) * tile_size;
             float world_y = (y - _height_map.height / 2.0f) * tile_size;
 
-            // ÁRBOLES: Solo en pasto/bosque (altura entre 0.42 y 0.75)
-            // 2% de probabilidad por tile
+            // ÁRBOLES: Solo en pasto/bosque (altura entre 0.42 y 0.75) 2% de probabilidad por tile
             if (height > 0.42f && height < 0.75f && dist(rng) < 0.02f) 
             {
                 // Un poco de aleatoriedad en la posición para que no se vean cuadriculados
                 float offset_x = (dist(rng) - 0.5f) * tile_size;
                 float offset_y = (dist(rng) - 0.5f) * tile_size;
                 
-                _props.push_back({
+                _props.append({
                     sf::Vector2f(world_x + offset_x, world_y + offset_y),
                     PropType::TREE,
                     tile_size * 0.3f, // Radio de colisión (30% del tamaño del tile)
                     sf::Color::White
                 });
             }
-            // FLORES: En pasto (altura entre 0.42 y 0.65)
-            // 3% de probabilidad
+ 
+            // FLORES: En pasto (altura entre 0.42 y 0.65) 3% de probabilidad
             else if (height > 0.42f && height < 0.65f && dist(rng) < 0.03f)
             {
                 float offset_x = (dist(rng) - 0.5f) * tile_size;
@@ -245,7 +244,7 @@ void terrain_generator::generate_props(float tile_size)
                 else if (color_choice == 1) flower_color = sf::Color(255, 105, 180); // Rosa
                 else flower_color = sf::Color::White;
                 
-                _props.push_back({
+                _props.append({
                     sf::Vector2f(world_x + offset_x, world_y + offset_y),
                     PropType::FLOWER,
                     0.0f, // Sin colisión
@@ -330,7 +329,7 @@ sf::Vector2f terrain_generator::find_edge(float dir_x, float dir_y, float tile_s
     // Avanzamos en pasos pequeños (0.5 tiles) hasta encontrar agua
     float step = 0.5f; 
     
-    while (true) 
+    while (true)  
     {
         current_x += dir_x * step;
         current_y += dir_y * step;
@@ -372,5 +371,5 @@ void terrain_generator::draw(sf::RenderWindow& window, float tileSize)
     
 const height_map& terrain_generator::get_height_map() const { return _height_map; }
 
-const std::vector<Prop>& terrain_generator::get_props() const { return _props; }
+const Designar::DynArray<Prop>& terrain_generator::get_props() const { return _props; }
 

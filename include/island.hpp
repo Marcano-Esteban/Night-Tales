@@ -24,8 +24,8 @@ public:
     IslandType type;
     terrain_generator terrain;  
     sf::Vector2f world_position; // Coordenadas del mundo para saber dónde conectarla (solo para el mapa mental)
-    std::vector<int> connections;// IDs de las islas a las que se conecta
-    std::vector<Portal> portals;
+    Designar::DynArray<int> connections;// IDs de las islas a las que se conecta
+    Designar::DynArray<Portal> portals;
     bool generated;
 
     Island(int id, IslandType type, int width, int height, unsigned int seed, sf::Vector2f pos);

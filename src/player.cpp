@@ -11,7 +11,7 @@ player::player(float x, float y) : position(x, y), speed(200.0f), radius(10.0f),
 }
 
 // Comprueba si el jugador puede estar en (x, y)
-bool player::is_valid_position(float x, float y, const height_map& map, float tile_size, const std::vector<Prop>& props)
+bool player::is_valid_position(float x, float y, const height_map& map, float tile_size, const Designar::DynArray<Prop>& props)
 {
     // 1. Verificar colisión con el agua/cielo
     int tile_x = static_cast<int>(x / tile_size + map.width / 2.0f);
@@ -50,7 +50,7 @@ bool player::is_valid_position(float x, float y, const height_map& map, float ti
     return true; // La posición es válida
 }
 
-void player::update(float deltaTime, const height_map& map, float tile_size, const std::vector<Prop>& props)
+void player::update(float deltaTime, const height_map& map, float tile_size, const Designar::DynArray<Prop>& props)
 {
     // 1. LEER INPUT (WASD)
     sf::Vector2f direction(0.0f, 0.0f);

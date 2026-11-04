@@ -1,8 +1,7 @@
 #include "../include/utilyties.hpp"
 #include <iostream>
-#include <vector>
+#include <array.hpp>
 
-// ============================================
 // Carga la fuente (assets/ primero, sistema después)
 sf::Font& load_font()
 {
@@ -12,7 +11,7 @@ sf::Font& load_font()
     if (!loaded)
     {
         // Lista de rutas ordenadas por prioridad
-        std::vector<std::string> font_paths = {
+        Designar::DynArray<std::string> font_paths = {
             // 1. Assets local (portable)
             "assets/fonts/default.ttf",
             "../assets/fonts/default.ttf",
@@ -45,15 +44,14 @@ sf::Font& load_font()
 
         if (!loaded)
         {
-            std::cout << "⚠️  No se pudo cargar ninguna fuente." << std::endl;
-            std::cout << "   Crea la carpeta assets/fonts/ y pon una fuente default.ttf" << std::endl;
+            std::cout << "  No se pudo cargar ninguna fuente." << std::endl;
+            std::cout << "  Crea la carpeta assets/fonts/ y pon una fuente default.ttf" << std::endl;
         }
     }
 
     return font;
 }
 
-// ============================================
 // Crea un texto con la fuente dada
 sf::Text create_info_text(sf::Font& font, const std::string& message)
 {
@@ -63,7 +61,6 @@ sf::Text create_info_text(sf::Font& font, const std::string& message)
     return info;
 }
 
-// ============================================
 // Crea un texto con posición personalizada
 sf::Text create_text(sf::Font& font, const std::string& message, unsigned int size, sf::Vector2f position)
 {                  

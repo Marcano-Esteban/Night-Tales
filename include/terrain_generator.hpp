@@ -25,7 +25,7 @@ private:
     sf::VertexArray _vertices;
     bool _vertices_dirty;
     
-    std::vector<Prop> _props;
+    Designar::DynArray<Prop> _props;
     std::mt19937 rng;
     
 public:
@@ -37,7 +37,7 @@ public:
 
     void generate_props(float tile_size);
     void draw_props(sf::RenderWindow& window, float tile_size);
-    const std::vector<Prop>& get_props() const;
+    const Designar::DynArray<Prop>& get_props() const;
 
     sf::Color get_color(float height);
     const height_map& get_height_map() const;

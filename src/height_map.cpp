@@ -3,7 +3,7 @@
     
     height_map::height_map(int w, int h) : width(w), height(h) 
     {
-        data.resize(h, std::vector<float>(w, 0.0f));
+        data = Designar::DynArray<Designar::DynArray<float>>(h, Designar::DynArray<float>(w, 0.0f));
     }
     
     float& height_map::at(int x, int y)

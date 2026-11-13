@@ -1,66 +1,76 @@
 #include "../include/world.hpp"
 
-World::World() : current_island_id(0) {}
+World::World() : current_island(nullptr) {}
+
+World::~World() 
+{
+    // Nota: Aquí deberías liberar la memoria de todas las islas. 
+}
 
 void World::create_test_world(unsigned int seed) 
 {
-    islands.insert(0, Island(0, IslandType::CENTRAL, 200, 200, seed, sf::Vector2f(0, 0)));
-    islands.insert(1, Island(1, IslandType::VILLAGE, 200, 200, seed + 100, sf::Vector2f(-500, 0)));
-    islands.insert(2, Island(2, IslandType::TEMPLE, 200, 200, seed + 200, sf::Vector2f(500, 0)));
+    // 1. Crear Isla Central
+    Island* central = new Island(0, IslandType::CENTRAL, 200, 200, seed, sf::Vector2f(0, 0));
+    island_tree = new Designar::MTreeNode<Island*>(central); // ✅ Nodo raíz
     
-    islands.find(0).connections = {1, 2};
-    islands.find(1).connections = {0};
-    islands.find(2).connections = {0};
+    // 2. Crear Isla Aldea
+    Island* _village = new Island(1, IslandType::VILLAGE, 150, 150, seed + 100, sf::Vector2f(-500, 0));
+    auto village = new Designar::MTreeNode<Island*>(_village);
+    island_tree->insert_child(village);
 
-    islands.find(0).generate();
-    islands.find(1).generate();
-    islands.find(2).generate();
+    // 3. Crear Isla Templo
+    Island* _temple = new Island(2, IslandType::TEMPLE, 150, 150, seed + 200, sf::Vector2f(500, 0));
+    auto temple = new Designar::MTreeNode<Island*>(_temple);
+    island_tree->insert_child(temple); 
 
-    const float TILE_SIZE = 50.0f; // Para calcular las coordenadas
-
-    // 1. Isla Central -> Isla Izquierda
-    sf::Vector2f edge_0_left = islands.find(0).terrain.find_edge(-1.0f, 0.0f, TILE_SIZE);
-    sf::Vector2f edge_1_right = islands.find(1).terrain.find_edge(1.0f, 0.0f, TILE_SIZE);
+    // Generar y cargar SOLO la central al inicio
+    central->load();
+    current_island = central;
     
-    // El portal en la isla 0 se pone en el borde izquierdo.
-    // El spawn en la isla 1 es un poco adentro del borde derecho (restamos 100 unidades)
-    islands.find(0).add_portal(edge_0_left, 1, edge_1_right - sf::Vector2f(100.0f, 0.0f));
+    const float TILE_SIZE = 50.0f;
 
-    // 2. Isla Central -> Isla Derecha
-    sf::Vector2f edge_0_right = islands.find(0).terrain.find_edge(1.0f, 0.0f, TILE_SIZE);
-    sf::Vector2f edge_2_left = islands.find(2).terrain.find_edge(-1.0f, 0.0f, TILE_SIZE);
-    
-    islands.find(0).add_portal(edge_0_right, 2, edge_2_left + sf::Vector2f(100.0f, 0.0f));
+    // 4. Conectar portales
+    // Central -> Aldea
+    sf::Vector2f edge_central_left = central->terrain.find_edge(-1.0f, 0.0f, TILE_SIZE);
+    _village->load();
+    sf::Vector2f edge_village_right = _village->terrain.find_edge(1.0f, 0.0f, TILE_SIZE);
+    central->add_portal(edge_central_left, _village, edge_village_right - sf::Vector2f(100.0f, 0.0f));
+    _village->unload(); // Descargamos la aldea inmediatamente
 
-    // 3. Isla Izquierda -> Central (vuelta)
-    islands.find(1).add_portal(edge_1_right, 0, edge_0_left + sf::Vector2f(100.0f, 0.0f));
+    // Central -> Templo
+    sf::Vector2f edge_central_right = central->terrain.find_edge(1.0f, 0.0f, TILE_SIZE);
+    _temple->load();
+    sf::Vector2f edge_temple_left = _temple->terrain.find_edge(-1.0f, 0.0f, TILE_SIZE);
+    central->add_portal(edge_central_right, _temple, edge_temple_left + sf::Vector2f(100.0f, 0.0f));
+    _temple->unload();
 
-    // 4. Isla Derecha -> Central (vuelta)
-    islands.find(2).add_portal(edge_2_left, 0, edge_0_right - sf::Vector2f(100.0f, 0.0f));
+    // Aldea -> Central
+    _village->load();
+    _village->add_portal(edge_village_right, central, edge_central_left + sf::Vector2f(100.0f, 0.0f));
+    _village->unload();
 
-    travel_to(0);
+    // Templo -> Central
+    _temple->load();
+    _temple->add_portal(edge_temple_left, central, edge_central_right - sf::Vector2f(100.0f, 0.0f));
+    _temple->unload();
 }
 
-void World::travel_to(int island_id) 
+void World::travel_to(Island* target_island) 
 {
-    try 
+    if (current_island) 
     {
-        Island& island = islands.find(island_id);
-        current_island_id = island_id;
-        island.generate();
-    } 
-    catch (...) 
-    {
-        // La isla no existe (no debería pasar en el flujo normal)
+        current_island->unload(); // Descargamos la isla actual
     }
+    target_island->load(); // Cargamos la nueva
+    current_island = target_island;
 }
 
-Island& World::get_current_island() 
-{
-    return islands.find(current_island_id);
+Island* World::get_current_island() 
+{ 
+    return current_island; 
 }
 
 int World::get_current_id() const 
-{
-    return current_island_id;
+{ 
+    return current_island ? current_island->id : -1; 
 }

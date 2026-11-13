@@ -3,19 +3,21 @@
 
 enum class IslandType 
 {
-    CENTRAL,    // Donde está el portal
-    VILLAGE,    // Aldea (fija)
-    TEMPLE,     // Templo (fijo)
-    RANDOM      // Generada al azar
+    CENTRAL,
+    VILLAGE,
+    TEMPLE,
+    RANDOM
 };
+
+class Island;
 
 struct Portal 
 {
     sf::Vector2f position;      // Centro del portal en coordenadas del mundo
     float radius;               // Radio de colisión
-    int target_island_id;       // A qué isla lleva
-    sf::Vector2f spawn_position;// Dónde aparece el jugador en la isla destino
-};
+    Island* target_island;      // A qué isla lleva
+    sf::Vector2f spawn_position;
+}; 
 
 class Island 
 {
@@ -27,9 +29,12 @@ public:
     Designar::DynArray<int> connections;// IDs de las islas a las que se conecta
     Designar::DynArray<Portal> portals;
     bool generated;
-
-    Island(int id, IslandType type, int width, int height, unsigned int seed, sf::Vector2f pos);
+    bool is_loaded = false;
     
+    Island(int id, IslandType type, int width, int height, unsigned int seed, sf::Vector2f pos);
+
+    void load();   // Genera el terreno y props
+    void unload(); // Libera la memoria (vértices y props)
     void generate();
-    void add_portal(sf::Vector2f pos, int target_id, sf::Vector2f spawn_pos);
+    void add_portal(sf::Vector2f pos, Island* target, sf::Vector2f spawn_pos);
 };

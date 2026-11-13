@@ -31,6 +31,7 @@ private:
 public:
     terrain_generator(int width, int height, unsigned int seed = 42);
 
+    void clear();
     void generate(float frequency = 0.05f, float seaLevel = 0.04f);
     void rebuild_vertices(float tile_size);
     void draw(sf::RenderWindow& window, float tileSize);

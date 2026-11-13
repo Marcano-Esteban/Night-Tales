@@ -368,7 +368,14 @@ void terrain_generator::draw(sf::RenderWindow& window, float tileSize)
     }
     window.draw(_vertices);
 }
-    
+
+void terrain_generator::clear() 
+{
+    _vertices.clear();
+    _props.clear();
+    _vertices_dirty = true;
+}
+
 const height_map& terrain_generator::get_height_map() const { return _height_map; }
 
 const Designar::DynArray<Prop>& terrain_generator::get_props() const { return _props; }

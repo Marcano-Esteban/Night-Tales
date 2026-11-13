@@ -1,23 +1,22 @@
 #pragma once
 #include "island.hpp"
+#include <mtreenode.hpp> 
 #include <map.hpp>
 
 class World 
 {
 private:
-    Designar::TreeMap<int, Island> islands;
-    int current_island_id;
+    Designar::MTreeNode<Island*>* island_tree;
+    Designar::TreeMap<int, Island*> island_index; // Para búsquedas rápidas por IDs
+    Island* current_island;
 
 public:
     World();
-    
-    // Crea las islas iniciales (por ahora, 3 islas fijas para probar)
+    ~World();
+
     void create_test_world(unsigned int seed);
+    void travel_to(Island* target_island); 
     
-    // Cambia a otra isla
-    void travel_to(int island_id);
-    
-    // Obtener la isla actual
-    Island& get_current_island();
+    Island* get_current_island();
     int get_current_id() const;
 };

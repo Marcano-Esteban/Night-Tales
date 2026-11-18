@@ -3,18 +3,7 @@
 #include <SFML/Graphics.hpp>
 #include "noise_generator.hpp"
 #include "../include/height_map.hpp"
-
-// Estructura para un objeto del mapa
-enum class PropType { TREE, FLOWER };
-
-struct Prop 
-{
-    sf::Vector2f position;
-    PropType type;
-    float collision_radius; // 0.0 si no tiene colisión
-    sf::Color color; 
-};
-
+#include "../include/prop.hpp"
 
 class terrain_generator 
 {
@@ -25,7 +14,6 @@ private:
     sf::VertexArray _vertices;
     bool _vertices_dirty;
     
-    Designar::DynArray<Prop> _props;
     std::mt19937 rng;
     
 public:
@@ -36,9 +24,8 @@ public:
     void rebuild_vertices(float tile_size);
     void draw(sf::RenderWindow& window, float tileSize);
 
-    void generate_props(float tile_size);
-    void draw_props(sf::RenderWindow& window, float tile_size);
-    const Designar::DynArray<Prop>& get_props() const;
+    void generate_props(float tile_size, Designar::DynArray<Prop>& out);
+    void draw_props(sf::RenderWindow& window, const Designar::DynArray<Prop>& props, float tile_size);
 
     sf::Color get_color(float height);
     const height_map& get_height_map() const;

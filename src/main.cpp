@@ -13,7 +13,7 @@ int main()
     window.setFramerateLimit(60);
     
     World world;
-    world.create_test_world(12345); 
+    world.create_world(56789); 
     
     Island* current = world.get_current_island();
     sf::Vector2f spawn = current->terrain.find_spawn_point(TILE_SIZE);
@@ -36,6 +36,12 @@ int main()
     float zoom = 1.0f;
 
     sf::Clock clock;
+
+    // === Variables para el Minimapa ===
+    sf::View minimap_view;
+    minimap_view.setViewport(sf::FloatRect(sf::Vector2f(0.8f, 0.0f), sf::Vector2f(0.2f, 0.2f)));; // Arriba a la derecha
+    minimap_view.setSize(sf::Vector2f(2000.0f, 2000.0f)); // Tamaño del mundo visible
+    minimap_view.setCenter(sf::Vector2f(0, 0)); // Centrado en la isla central
     
     while (window.isOpen()) 
     {
@@ -60,16 +66,16 @@ int main()
 
         if (state == GameState::PLAYING) 
         {
-            jugador.update(dt, current->terrain.get_height_map(), TILE_SIZE, current->terrain.get_props());
+            jugador.update(dt, current->terrain.get_height_map(), TILE_SIZE, current->props);
             
-            for (const auto& portal : current->portals) 
+            for (const auto& portal : current->vecinas) 
             {
                 sf::Vector2f diff = jugador.get_position() - portal.position;
                 float dist = std::sqrt(diff.x * diff.x + diff.y * diff.y);
                 
                 if (dist < jugador.get_radius() + portal.radius) 
                 {
-                    target_island = portal.target_island; 
+                    target_island = portal.destino; 
                     target_spawn = portal.spawn_position;
                     state = GameState::TRANSITIONING;
                     transition_timer = 0.0f;
@@ -113,10 +119,14 @@ int main()
         window.clear(sf::Color(135, 206, 235));
 
         window.setView(camera);
-        current->terrain.draw(window, TILE_SIZE); 
-        current->terrain.draw_props(window, TILE_SIZE); 
-        
-        for (const auto& portal : current->portals) 
+
+        // Actualizar timers de la isla actual
+        current->update_props(dt);
+        // Dibujar
+        current->terrain.draw(window, TILE_SIZE);
+        current->draw_props(window, TILE_SIZE);   // ← Cambio
+
+        for (const auto& portal : current->vecinas) 
         {
             sf::CircleShape portal_shape(portal.radius);
             portal_shape.setOrigin(sf::Vector2f(portal.radius, portal.radius));
@@ -140,6 +150,59 @@ int main()
             info.setString(infoText);
             window.draw(info);
         }
+
+        // ============================================
+        // DIBUJAR MINI-MAPA
+        // ============================================
+        window.setView(window.getDefaultView()); // Volver a la UI
+        window.setView(minimap_view);            // Usar la vista del minimapa
+
+        // 1. Dibujar las conexiones (líneas)
+        for (auto* isla : world.get_all_islands()) // Necesitaremos hacer 'all_islands' público o un getter
+        {
+            for (const auto& conexion : isla->vecinas)
+            {
+                sf::Vertex linea[] = {
+                    sf::Vertex{isla->posicion, sf::Color(200, 200, 200, 100)},
+                    sf::Vertex{conexion.destino->posicion, sf::Color(200, 200, 200, 100)}
+                };
+                window.draw(linea, 2, sf::PrimitiveType::Lines);
+            }
+        }
+
+        // 2. Dibujar las islas (círculos)
+        for (auto* isla : world.get_all_islands())
+        {
+            sf::CircleShape punto(isla->radio * 0.5f); // Hacerlos más pequeños para el mapa
+            punto.setOrigin(sf::Vector2f(isla->radio * 0.5f, isla->radio * 0.5f));
+            punto.setPosition(isla->posicion);
+
+            if (isla == current) 
+            {
+                punto.setFillColor(sf::Color::Yellow); // Isla actual
+            } 
+            else if (isla->explorada) 
+            {
+                punto.setFillColor(sf::Color::White);  // Ya la visitamos
+            } 
+            else 
+            {
+                punto.setFillColor(sf::Color(100, 100, 100)); // No visitada
+            }
+            
+            window.draw(punto);
+        }
+
+        // 3. Dibujar un borde al minimapa
+        sf::RectangleShape borde(sf::Vector2f(1280, 720)); // Tamaño de la ventana
+        borde.setFillColor(sf::Color::Transparent);
+        borde.setOutlineColor(sf::Color::White);
+        borde.setOutlineThickness(2.0f);
+        
+        window.draw(borde);
+        
+        // Volver a la vista de la UI para el resto de cosas
+        window.setView(window.getDefaultView());
         
         window.display();
     }

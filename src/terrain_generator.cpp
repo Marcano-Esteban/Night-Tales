@@ -200,9 +200,9 @@ sf::Vector2f terrain_generator::find_spawn_point(float tile_size) const
     return sf::Vector2f(world_x, world_y);
 }
 
-void terrain_generator::generate_props(float tile_size)
+void terrain_generator::generate_props(float tile_size, Designar::DynArray<Prop>& out) 
 {
-    _props.clear();
+    out.clear();
     
     // Distribución uniforme para probabilidades (0.0 a 1.0)
     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
@@ -217,23 +217,20 @@ void terrain_generator::generate_props(float tile_size)
             float world_x = (x - _height_map.width / 2.0f) * tile_size;
             float world_y = (y - _height_map.height / 2.0f) * tile_size;
 
-            // ÁRBOLES: Solo en pasto/bosque (altura entre 0.42 y 0.75) 2% de probabilidad por tile
-            if (height > 0.42f && height < 0.75f && dist(rng) < 0.02f) 
+            if (height > 0.42f && height < 0.75f && dist(rng) < 0.02f) // ÁRBOLES: Solo en pasto/bosque (altura entre 0.42 y 0.75) 2% de probabilidad por tile
             {
                 // Un poco de aleatoriedad en la posición para que no se vean cuadriculados
                 float offset_x = (dist(rng) - 0.5f) * tile_size;
                 float offset_y = (dist(rng) - 0.5f) * tile_size;
                 
-                _props.append({
+                out.append({
                     sf::Vector2f(world_x + offset_x, world_y + offset_y),
                     PropType::TREE,
                     tile_size * 0.3f, // Radio de colisión (30% del tamaño del tile)
                     sf::Color::White
                 });
             }
- 
-            // FLORES: En pasto (altura entre 0.42 y 0.65) 3% de probabilidad
-            else if (height > 0.42f && height < 0.65f && dist(rng) < 0.03f)
+            else if (height > 0.42f && height < 0.65f && dist(rng) < 0.03f) // FLORES: En pasto (altura entre 0.42 y 0.65) 3% de probabilidad
             {
                 float offset_x = (dist(rng) - 0.5f) * tile_size;
                 float offset_y = (dist(rng) - 0.5f) * tile_size;
@@ -244,7 +241,7 @@ void terrain_generator::generate_props(float tile_size)
                 else if (color_choice == 1) flower_color = sf::Color(255, 105, 180); // Rosa
                 else flower_color = sf::Color::White;
                 
-                _props.append({
+                out.append({
                     sf::Vector2f(world_x + offset_x, world_y + offset_y),
                     PropType::FLOWER,
                     0.0f, // Sin colisión
@@ -255,7 +252,7 @@ void terrain_generator::generate_props(float tile_size)
     }
 }
 
-void terrain_generator::draw_props(sf::RenderWindow& window, float tile_size)
+void terrain_generator::draw_props(sf::RenderWindow& window, const Designar::DynArray<Prop>& props, float tile_size ) 
 {
     // Obtenemos la vista actual para no dibujar lo que está fuera de pantalla (Culling)
     sf::FloatRect view_bounds = window.getView().getViewport();
@@ -272,8 +269,14 @@ void terrain_generator::draw_props(sf::RenderWindow& window, float tile_size)
     sf::RectangleShape trunk;
     sf::CircleShape flower;
 
-    for (const auto& prop : _props)
+    for (const auto& prop : props)
     {
+        if (prop.state == PropState::GONE) continue;
+        if (prop.state == PropState::DEPLETED) 
+        {
+            // Dibujar versión "talada" (tocón) o saltar
+            continue;
+        }
         // Culling: Si está fuera de la pantalla, no lo dibujamos (ahorra mucha CPU)
         if (prop.position.x < left - margin || prop.position.x > right + margin || prop.position.y < top - margin || prop.position.y > bottom + margin)
         {
@@ -372,11 +375,9 @@ void terrain_generator::draw(sf::RenderWindow& window, float tileSize)
 void terrain_generator::clear() 
 {
     _vertices.clear();
-    _props.clear();
     _vertices_dirty = true;
 }
 
 const height_map& terrain_generator::get_height_map() const { return _height_map; }
 
-const Designar::DynArray<Prop>& terrain_generator::get_props() const { return _props; }
 

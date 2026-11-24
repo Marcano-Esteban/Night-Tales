@@ -1,0 +1,26 @@
+[WORLD]
+name=prueva de minimapa
+seed=12345
+layout=0
+connection=0
+current_island=5
+game_time=0.5614
+playtime=186.838
+last_played=1795258999
+[PLAYER]
+pos_x=233.541
+pos_y=524.517
+[ISLANDS]
+island=0,1,
+island=1,0,
+island=2,0,
+island=3,0,
+island=4,0,
+island=5,0,
+island=6,0,
+island=7,0,
+island=8,0,
+island=9,0,
+island=10,0,
+island=11,0,
+island=12,0,

@@ -37,7 +37,6 @@ sf::Font& load_font()
             if (font.openFromFile(path))
             {
                 loaded = true;
-                std::cout << "Fuente cargada: " << path << std::endl;
                 break;
             }
         }

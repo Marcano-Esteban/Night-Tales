@@ -275,7 +275,7 @@ void terrain_generator::draw_props(sf::RenderWindow& window, const Designar::Dyn
         if (prop.state == PropState::DEPLETED) 
         {
             // Dibujar versión "talada" (tocón) o saltar
-            continue;
+            //continue;
         }
         // Culling: Si está fuera de la pantalla, no lo dibujamos (ahorra mucha CPU)
         if (prop.position.x < left - margin || prop.position.x > right + margin || prop.position.y < top - margin || prop.position.y > bottom + margin)

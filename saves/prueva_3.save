@@ -1,0 +1,26 @@
+[WORLD]
+name=prueva 3
+seed=12345
+layout=0
+connection=0
+current_island=9
+game_time=0.469777
+playtime=131.864
+last_played=1795259498
+[PLAYER]
+pos_x=1089.85
+pos_y=149.098
+[ISLANDS]
+island=0,1,
+island=1,0,
+island=2,0,
+island=3,0,
+island=4,0,
+island=5,0,
+island=6,0,
+island=7,0,
+island=8,0,
+island=9,0,
+island=10,0,
+island=11,0,
+island=12,0,

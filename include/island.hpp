@@ -28,7 +28,6 @@ struct Conexion
 class Island 
 {
 public:
-    
     int id;                     // ── Identidad ─────────────────────────────
     unsigned int semilla;
     int profundidad;
@@ -39,14 +38,12 @@ public:
 
     Island* padre;              // ── Jerarquía del árbol ───────────────────
     Designar::DynArray<Island*> hijas;
-
     Designar::DynArray<Conexion> vecinas;// ── Grafo de navegación ───────────────────
 
     terrain_generator terrain;  // ── Terreno (carga/descarga) ──────────────
     bool generated;
     bool is_loaded;
-
-    bool explorada;             // ── Estado de juego ───────────────────────
+    bool explorada;
     bool modificada;
     Designar::DynArray<Anchor> anchors;
 
@@ -57,7 +54,7 @@ public:
     
     void load();
     void unload();
-    void update_props(float dt);
+    void update_props(float playtime, float day_duration);
     void draw_props(sf::RenderWindow& window, float tile_size);
     
     void add_child(Island* child);

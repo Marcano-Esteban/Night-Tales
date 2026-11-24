@@ -1,208 +1,332 @@
-#include <SFML/Window/Keyboard.hpp>
-#include <algorithm>
-#include "../include/world.hpp"
+#include <SFML/Graphics.hpp>
+#include <iostream>
+#include <ctime>
+#include <cctype>
+#include "../include/game.hpp"
+#include "../include/save_manager.hpp"
 #include "../include/utilyties.hpp"
-#include "../include/player.hpp"  
 
-enum class GameState { PLAYING, TRANSITIONING };
+std::string layout_to_string(LayoutStyle l) 
+{
+    switch (l) 
+    {
+        case LayoutStyle::PARENT_RADIAL:  return "Alrededor del padre";
+        case LayoutStyle::CENTER_RADIAL:  return "Anillos desde el centro";
+        case LayoutStyle::RANDOM_SCATTER: return "Aleatorio (archipielago)";
+    }
+    return "?";
+}
+
+std::string connection_to_string(ConnectionStyle c) 
+{
+    switch (c) 
+    {
+        case ConnectionStyle::TREE_ONLY:      return "Solo arbol";
+        case ConnectionStyle::TREE_SHORTCUTS: return "Arbol + atajos";
+        case ConnectionStyle::RINGS:          return "Anillos + puentes";
+        case ConnectionStyle::PROXIMITY:      return "Proximidad (BFS)";
+    }
+    return "?";
+}
+
+enum class AppState 
+{
+    MAIN_MENU,
+    NEW_GAME_MENU,
+    LOAD_GAME_MENU,
+    PLAYING,
+    PAUSED
+};
 
 int main() 
 {
-    const float TILE_SIZE = 50.0f;
-    sf::RenderWindow window(sf::VideoMode(sf::Vector2u(1280, 720)), "Islas Flotantes");
+    sf::RenderWindow window(sf::VideoMode(sf::Vector2u(1280, 720)), "Night Tales");
     window.setFramerateLimit(60);
     
-    World world;
-    world.create_world(56789); 
-    
-    Island* current = world.get_current_island();
-    sf::Vector2f spawn = current->terrain.find_spawn_point(TILE_SIZE);
-    player jugador(spawn.x, spawn.y);
-    
-    GameState state = GameState::PLAYING;
-    float transition_timer = 0.0f;
-    Island* target_island = nullptr;
-    sf::Vector2f target_spawn;
-    
-    bool running = true;
     sf::Font& font = load_font();
-    sf::Text info = create_info_text(font, "=== ISLA ===");
-    sf::RectangleShape fade_rect(sf::Vector2f(1280, 720));
-    fade_rect.setFillColor(sf::Color(0, 0, 0, 0));
-
-    sf::View camera;
-    camera.setSize(sf::Vector2f(1280, 720));
-    camera.setCenter(jugador.get_position());
-    float zoom = 1.0f;
-
+    Game game;
+    game.init(font);
+    
+    SaveManager save_mgr("saves/");
+    AppState state = AppState::MAIN_MENU;
+    
+    // Estado de los menús
+    int selected_option = 0;
+    int load_selected = 0;
+    std::string world_name_input;
+    std::string seed_input;
+    std::string error_message;
+    bool typing_name = true;
+    
+    // Save actual
+    std::string current_save_filename;
+    
+    std::vector<SaveSlotInfo> load_saves_cache;
     sf::Clock clock;
 
-    // === Variables para el Minimapa ===
-    sf::View minimap_view;
-    minimap_view.setViewport(sf::FloatRect(sf::Vector2f(0.8f, 0.0f), sf::Vector2f(0.2f, 0.2f)));; // Arriba a la derecha
-    minimap_view.setSize(sf::Vector2f(2000.0f, 2000.0f)); // Tamaño del mundo visible
-    minimap_view.setCenter(sf::Vector2f(0, 0)); // Centrado en la isla central
-    
+    LayoutStyle selected_layout = LayoutStyle::PARENT_RADIAL;
+    ConnectionStyle selected_connection = ConnectionStyle::TREE_SHORTCUTS;
+
     while (window.isOpen()) 
     {
+        float dt = clock.restart().asSeconds();
+        
         while (auto event = window.pollEvent()) 
         {
-            if (event->is <sf::Event::Closed>()) window.close();
+            if (event->is<sf::Event::Closed>()) window.close();
             
-            if (const auto* mouseEvent = event->getIf<sf::Event::MouseWheelScrolled>()) 
+            if (state == AppState::MAIN_MENU) 
             {
-                zoom -= mouseEvent->delta * 0.5f;
-                zoom = std::max(0.5f, std::min(20.0f, zoom));
+                if (const auto* key = event->getIf<sf::Event::KeyPressed>()) 
+                {
+                    if (key->code == sf::Keyboard::Key::Up && selected_option > 0) selected_option--;
+                    if (key->code == sf::Keyboard::Key::Down && selected_option < 3) selected_option++;
+                    if (key->code == sf::Keyboard::Key::Enter) 
+                    {
+                        if (selected_option == 0) 
+                        {
+                            state = AppState::NEW_GAME_MENU;
+                            world_name_input = "";
+                            seed_input = "";
+                            error_message = "";
+                            typing_name = true;
+                        } 
+                        else if (selected_option == 1) 
+                        {
+                            load_saves_cache = save_mgr.list_saves();
+                            load_selected = 0;
+                            state = AppState::LOAD_GAME_MENU;
+                        } 
+                        else if (selected_option == 3) 
+                        {
+                            window.close();
+                        }
+                    }
+                }
             }
-
-            if (const auto* keyEvent = event->getIf<sf::Event::KeyPressed>()) 
+            else if (state == AppState::NEW_GAME_MENU) 
             {
-                if (keyEvent->code == sf::Keyboard::Key::Escape) running = false;
+                if (const auto* textEvent = event->getIf<sf::Event::TextEntered>()) 
+                {
+                    if (textEvent->unicode == 8) 
+                    {
+                        if (typing_name && !world_name_input.empty()) world_name_input.pop_back();
+                        else if (!typing_name && !seed_input.empty()) seed_input.pop_back();
+                        error_message = "";
+                    } 
+                    else if (textEvent->unicode == 13) 
+                    {
+                        if (typing_name) 
+                        {
+                            if (world_name_input.empty()) 
+                            {
+                                error_message = "El nombre no puede estar vacio";
+                            } 
+                            else if (save_mgr.world_name_exists(world_name_input)) 
+                            {
+                                error_message = "Ya existe un mundo con ese nombre";
+                            } 
+                            else 
+                            {
+                                typing_name = false;
+                                error_message = "";
+                            }
+                        } 
+                        else 
+                        {
+                            unsigned int final_seed = seed_input.empty() ? (unsigned int)std::time(nullptr) : std::stoul(seed_input);
+
+                            // Sanitizar nombre y guardar
+                            current_save_filename = SaveManager::sanitize_name(world_name_input);
+                            
+                            game.start_new_game(world_name_input, final_seed, 1,  selected_layout, selected_connection);
+                            save_mgr.save_game(current_save_filename, game.get_save_data());
+                            state = AppState::PLAYING;
+                        }
+                    } 
+                    else if (textEvent->unicode >= 32 && textEvent->unicode < 128) 
+                    {
+                        if (typing_name) world_name_input += (char)textEvent->unicode;
+                        else if (isdigit(textEvent->unicode)) seed_input += (char)textEvent->unicode;
+                        error_message = "";
+                    }
+                }
+                if (const auto* key = event->getIf<sf::Event::KeyPressed>()) 
+                {
+                    if (key->code == sf::Keyboard::Key::Escape) 
+                    {
+                        state = AppState::MAIN_MENU;
+                    }
+                    // ✅ Ciclar layouts (3 opciones)
+                    if (key->code == sf::Keyboard::Key::L) 
+                    {
+                        int l = (int)selected_layout;
+                        l = (l + 1) % 3;
+                        selected_layout = (LayoutStyle)l;
+                    }
+                    // ✅ Ciclar conexiones (4 opciones)
+                    if (key->code == sf::Keyboard::Key::C) 
+                    {
+                        int c = (int)selected_connection;
+                        c = (c + 1) % 4;
+                        selected_connection = (ConnectionStyle)c;
+                    }
+                }
+            }
+            else if (state == AppState::LOAD_GAME_MENU) 
+            {
+                if (const auto* key = event->getIf<sf::Event::KeyPressed>()) 
+                {
+                    if (key->code == sf::Keyboard::Key::Escape) 
+                    {
+                        state = AppState::MAIN_MENU;
+                    }
+                    if (key->code == sf::Keyboard::Key::Up && load_selected > 0) 
+                    {
+                        load_selected--;
+                    }
+                    if (key->code == sf::Keyboard::Key::Down && load_selected < (int)load_saves_cache.size() - 1) 
+                    {
+                        load_selected++;
+                    }
+                    if (key->code == sf::Keyboard::Key::Delete && !load_saves_cache.empty()) 
+                    {
+                        std::string to_delete = load_saves_cache[load_selected].filename;
+                        save_mgr.delete_save(to_delete);
+                        load_saves_cache = save_mgr.list_saves();
+                        if (load_selected >= (int)load_saves_cache.size() && load_selected > 0) 
+                        {
+                            load_selected--;
+                        }
+                    }
+                    if (key->code == sf::Keyboard::Key::Enter && !load_saves_cache.empty()) 
+                    {
+                        current_save_filename = load_saves_cache[load_selected].filename;
+                        GameSaveData data;
+                        if (save_mgr.load_game(current_save_filename, data)) 
+                        {
+                            game.load_from_save(data);
+                            state = AppState::PLAYING;
+                        }
+                    }
+                }
+            }
+            else if (state == AppState::PLAYING) 
+            {
+                if (const auto* key = event->getIf<sf::Event::KeyPressed>()) 
+                {
+                    if (key->code == sf::Keyboard::Key::Escape) state = AppState::PAUSED;
+                    if (key->code == sf::Keyboard::Key::M) game.toggle_big_map();
+                    if (key->code == sf::Keyboard::Key::E) game.handle_interact();  
+                }
+            }
+            else if (state == AppState::PAUSED) 
+            {
+                if (const auto* key = event->getIf<sf::Event::KeyPressed>()) 
+                {
+                    if (key->code == sf::Keyboard::Key::Up && selected_option > 0) selected_option--;
+                    if (key->code == sf::Keyboard::Key::Down && selected_option < 3) selected_option++;
+                    if (key->code == sf::Keyboard::Key::Escape) state = AppState::PLAYING;
+                    if (key->code == sf::Keyboard::Key::Enter) 
+                    {
+                        if (selected_option == 0) 
+                        {
+                            state = AppState::PLAYING;
+                        } 
+                        else if (selected_option == 1) 
+                        {
+                            save_mgr.save_game(current_save_filename, game.get_save_data());
+                        } 
+                        else if (selected_option == 2) 
+                        {
+                            save_mgr.save_game(current_save_filename, game.get_save_data());
+                            state = AppState::MAIN_MENU;
+                        } 
+                        else if (selected_option == 3) 
+                        {
+                            state = AppState::MAIN_MENU;
+                        }
+                    }
+                }
             }
         }
-
-        if (!running) break;
-        float dt = clock.restart().asSeconds();
-
-        if (state == GameState::PLAYING) 
-        {
-            jugador.update(dt, current->terrain.get_height_map(), TILE_SIZE, current->props);
-            
-            for (const auto& portal : current->vecinas) 
-            {
-                sf::Vector2f diff = jugador.get_position() - portal.position;
-                float dist = std::sqrt(diff.x * diff.x + diff.y * diff.y);
-                
-                if (dist < jugador.get_radius() + portal.radius) 
-                {
-                    target_island = portal.destino; 
-                    target_spawn = portal.spawn_position;
-                    state = GameState::TRANSITIONING;
-                    transition_timer = 0.0f;
-                    break;
-                }
-            }
-        } 
-        else if (state == GameState::TRANSITIONING) 
-        {
-            transition_timer += dt;
-            
-            if (transition_timer < 1.0f) 
-            {
-                fade_rect.setFillColor(sf::Color(0, 0, 0, static_cast<int>(255 * transition_timer)));
-            }
-            else if (transition_timer >= 1.0f && transition_timer < 2.0f) 
-            {
-                if (target_island != current) 
-                {
-                    fade_rect.setFillColor(sf::Color(0, 0, 0, 255));
-                    world.travel_to(target_island);
-                    current = target_island;
-                    jugador.set_position(target_spawn);
-                    camera.setCenter(jugador.get_position());
-                }
-            }
-            else if (transition_timer >= 2.0f) 
-            {
-                float fade_progress = (transition_timer - 2.0f) / 1.0f;
-                fade_rect.setFillColor(sf::Color(0, 0, 0, static_cast<int>(255 * (1.0f - fade_progress))));
-                if (transition_timer >= 3.0f) 
-                {
-                    state = GameState::PLAYING;
-                }
-            }
-        }
-
-        camera.setCenter(jugador.get_position());
-        camera.setSize(sf::Vector2f(1280.0f * zoom, 720.0f * zoom));
         
-        window.clear(sf::Color(135, 206, 235));
-
-        window.setView(camera);
-
-        // Actualizar timers de la isla actual
-        current->update_props(dt);
+        // Actualizar
+        if (state == AppState::PLAYING) game.update(dt);
+        
         // Dibujar
-        current->terrain.draw(window, TILE_SIZE);
-        current->draw_props(window, TILE_SIZE);   // ← Cambio
-
-        for (const auto& portal : current->vecinas) 
+        window.clear(sf::Color(30, 30, 40));
+        
+        if (state == AppState::PLAYING) 
         {
-            sf::CircleShape portal_shape(portal.radius);
-            portal_shape.setOrigin(sf::Vector2f(portal.radius, portal.radius));
-            portal_shape.setPosition(portal.position);
-            portal_shape.setFillColor(sf::Color(160, 32, 240, 150));
-            portal_shape.setOutlineColor(sf::Color::White);
-            portal_shape.setOutlineThickness(4.0f);
-            window.draw(portal_shape);
-        }
-        jugador.draw(window); 
-
-        window.setView(window.getDefaultView());
-        if (state == GameState::TRANSITIONING) 
+            game.draw(window);
+            game.draw_hud(window);
+        } 
+        else if (state == AppState::PAUSED) 
         {
-            window.draw(fade_rect);
-        }
-
-        if (state == GameState::PLAYING) 
-        {
-            std::string infoText = "Isla Actual: " + std::to_string(world.get_current_id());
-            info.setString(infoText);
-            window.draw(info);
-        }
-
-        // ============================================
-        // DIBUJAR MINI-MAPA
-        // ============================================
-        window.setView(window.getDefaultView()); // Volver a la UI
-        window.setView(minimap_view);            // Usar la vista del minimapa
-
-        // 1. Dibujar las conexiones (líneas)
-        for (auto* isla : world.get_all_islands()) // Necesitaremos hacer 'all_islands' público o un getter
-        {
-            for (const auto& conexion : isla->vecinas)
-            {
-                sf::Vertex linea[] = {
-                    sf::Vertex{isla->posicion, sf::Color(200, 200, 200, 100)},
-                    sf::Vertex{conexion.destino->posicion, sf::Color(200, 200, 200, 100)}
-                };
-                window.draw(linea, 2, sf::PrimitiveType::Lines);
-            }
-        }
-
-        // 2. Dibujar las islas (círculos)
-        for (auto* isla : world.get_all_islands())
-        {
-            sf::CircleShape punto(isla->radio * 0.5f); // Hacerlos más pequeños para el mapa
-            punto.setOrigin(sf::Vector2f(isla->radio * 0.5f, isla->radio * 0.5f));
-            punto.setPosition(isla->posicion);
-
-            if (isla == current) 
-            {
-                punto.setFillColor(sf::Color::Yellow); // Isla actual
-            } 
-            else if (isla->explorada) 
-            {
-                punto.setFillColor(sf::Color::White);  // Ya la visitamos
-            } 
-            else 
-            {
-                punto.setFillColor(sf::Color(100, 100, 100)); // No visitada
-            }
+            game.draw(window);
+            window.setView(window.getDefaultView());
+            sf::RectangleShape overlay(sf::Vector2f(1280, 720));
+            overlay.setFillColor(sf::Color(0, 0, 0, 150));
+            window.draw(overlay);
             
-            window.draw(punto);
+            sf::Text pause_text(font, "", 24);
+            pause_text.setPosition(sf::Vector2f(100, 100));
+            std::string t = "=== PAUSA ===\n\n";
+            t += (selected_option == 0 ? "> " : "  ") + std::string("Continuar\n");
+            t += (selected_option == 1 ? "> " : "  ") + std::string("Guardar\n");
+            t += (selected_option == 2 ? "> " : "  ") + std::string("Guardar y Salir\n");
+            t += (selected_option == 3 ? "> " : "  ") + std::string("Salir sin Guardar\n");
+            pause_text.setString(t);
+            window.draw(pause_text);
+        } 
+        else 
+        {
+            sf::Text menu_text(font, "", 24);
+            menu_text.setPosition(sf::Vector2f(100, 100));
+            
+            if (state == AppState::MAIN_MENU) 
+            {
+                std::string m = "=== NIGHT TALES ===\n\n";
+                m += (selected_option == 0 ? "> " : "  ") + std::string("Nueva Partida\n");
+                m += (selected_option == 1 ? "> " : "  ") + std::string("Cargar Partida\n");
+                m += (selected_option == 2 ? "> " : "  ") + std::string("Opciones\n");
+                m += (selected_option == 3 ? "> " : "  ") + std::string("Salir\n");
+                menu_text.setString(m);
+            } 
+            else if (state == AppState::NEW_GAME_MENU) 
+            {
+                std::string m = "=== NUEVA PARTIDA ===\n\n";
+                m += "Nombre: " + world_name_input + (typing_name ? "_" : "") + "\n\n";
+                m += "Semilla: " + seed_input + (!typing_name ? "_" : "") + "\n\n";
+                m += "Layout [L]: " + layout_to_string(selected_layout) + "\n";
+                m += "Conexion [C]: " + connection_to_string(selected_connection) + "\n\n";
+                if (!error_message.empty()) m += "⚠ " + error_message + "\n\n";
+                m += "ENTER para continuar, ESC para volver";
+                menu_text.setString(m);
+                window.draw(menu_text);
+            } 
+            else if (state == AppState::LOAD_GAME_MENU) 
+            {
+                std::string m = "=== CARGAR PARTIDA ===\n\n";
+                if (load_saves_cache.empty()) 
+                {
+                    m += "No hay partidas guardadas\n";
+                } 
+                else 
+                {
+                    for (int i = 0; i < (int)load_saves_cache.size(); ++i) 
+                    {
+                        const auto& s = load_saves_cache[i];
+                        m += (i == load_selected ? "> " : "  ") + s.world_name;
+                        m += "  [Seed: " + std::to_string(s.seed) + "]\n";
+                    }
+                }
+                m += "\n↑↓ navegar, ENTER cargar, DEL borrar, ESC volver";
+                menu_text.setString(m);
+            }
+            window.draw(menu_text);
         }
-
-        // 3. Dibujar un borde al minimapa
-        sf::RectangleShape borde(sf::Vector2f(1280, 720)); // Tamaño de la ventana
-        borde.setFillColor(sf::Color::Transparent);
-        borde.setOutlineColor(sf::Color::White);
-        borde.setOutlineThickness(2.0f);
-        
-        window.draw(borde);
-        
-        // Volver a la vista de la UI para el resto de cosas
-        window.setView(window.getDefaultView());
         
         window.display();
     }

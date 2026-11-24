@@ -19,7 +19,7 @@ void Island::load()
         if (delta.prop_index < props.size()) 
         {
             props[delta.prop_index].state = delta.state;
-            props[delta.prop_index].respawn_timer = delta.respawn_timer;
+            props[delta.prop_index].respawn_at_playtime = delta.respawn_at_playtime;
         }
     }
     terrain.rebuild_vertices(50.0f);
@@ -35,7 +35,7 @@ void Island::unload()
     {
         if (props[i].state != PropState::AVAILABLE) 
         {
-            prop_deltas.append({i, props[i].state, props[i].respawn_timer});
+            prop_deltas.append({i, props[i].state, props[i].respawn_at_playtime});
         }
     }
     props.clear();
@@ -43,17 +43,16 @@ void Island::unload()
     is_loaded = false;
 }
 
-void Island::update_props(float dt) 
+void Island::update_props(float playtime, float day_duration)
 {
     if (!is_loaded) return;   // Solo actualiza la isla activa
     for (auto& prop : props) 
     {
         if (prop.state != PropState::DEPLETED) continue;
-        prop.respawn_timer -= dt;
-        if (prop.respawn_timer <= 0.0f) 
+        if (playtime >= prop.respawn_at_playtime) 
         {
             prop.state = PropState::AVAILABLE;
-            prop.respawn_timer = 0.0f;
+            prop.respawn_at_playtime = 0.0f;
         }
     }
 }

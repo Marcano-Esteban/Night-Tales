@@ -2,7 +2,7 @@ CXX = g++
 #CXXFLAGS = -std=c++17 -Wall -O2 -march=native 
 TARGET = TerrainGenerator
 CXXFLAGS = -std=c++17 -O3 -march=native
-SOURCES = src/main.cpp src/noise_generator.cpp src/terrain_generator.cpp src/height_map.cpp src/utilyties.cpp src/player.cpp src/island.cpp src/world.cpp
+SOURCES = $(wildcard src/*.cpp)
 DESIGNAR_INCLUDE = -I./DeSiGNAR/include
 
 # Intentar usar pkg-config primero

@@ -25,6 +25,7 @@ struct GameSaveData
     Designar::DynArray<IslandSaveData> islands;
     int layout_style = 0;
     int connection_style = 0;
+    int character_type = 0; 
 };
 
 struct SaveSlotInfo 

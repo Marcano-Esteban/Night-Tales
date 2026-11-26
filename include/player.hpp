@@ -3,6 +3,7 @@
 #include "height_map.hpp"
 #include "terrain_generator.hpp"
 #include "inventory.hpp"
+#include "character.hpp"
 
 enum class PlayerState 
 {
@@ -40,17 +41,17 @@ private:
     // Escalada
     float climb_timer = 0.0f;
     Prop* climbing_target = nullptr;
-    static constexpr float CLIMB_UP_DURATION = 1.5f;
-    static constexpr float CLIMB_TOP_DURATION = 0.8f;
-    static constexpr float CLIMB_DOWN_DURATION = 1.5f;
+
+    float CLIMB_TOP_DURATION = 0.8f;
+    CharacterType character;
+    float climb_duration_up;
+    float climb_duration_down;
 
     bool is_valid_position(float x, float y, const height_map& map, float tile_size, const Designar::DynArray<Prop>& props);
 
                            
 public:
-    player(float x, float y);
-
-    // ✅ Nueva firma: recibe props no-const y playtime
+    player(float x, float y, CharacterType type = CharacterType::MANGA);
     void update(float dt, float playtime, const height_map& map, float tile_size,Designar::DynArray<Prop>& props);
      
     void set_position(sf::Vector2f new_pos);
@@ -64,6 +65,9 @@ public:
     Inventory& get_inventory() { return inventory; }
     const Inventory& get_inventory() const { return inventory; }
     bool is_busy() const { return state != PlayerState::NORMAL; }
+
+    CharacterType get_character() const { return character; }
+    UniqueAbility get_unique_ability() const;
 
     // Acciones
     bool try_climb(Prop* tree);

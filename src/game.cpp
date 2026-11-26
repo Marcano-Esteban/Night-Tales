@@ -20,12 +20,14 @@ void Game::init(sf::Font& f)
     minimap_view.setCenter(sf::Vector2f(0, 0));
 }
 
-void Game::start_new_game(const std::string& world_name, unsigned int seed, int player_count, LayoutStyle layout, ConnectionStyle connection)
+void Game::start_new_game(const std::string& world_name, unsigned int seed, int player_count,
+                        LayoutStyle layout, ConnectionStyle connection,CharacterType character)
 {
     current_world_name = world_name;
     current_seed = seed;
     current_layout = layout;
     current_connection = connection;
+    current_character = character;
     
     world.create_world(seed, layout, connection);
     current_island = world.get_current_island();
@@ -35,7 +37,7 @@ void Game::start_new_game(const std::string& world_name, unsigned int seed, int 
     sf::Vector2f spawn = current_island->terrain.find_spawn_point(50.0f);
     for (int i = 0; i < player_count; ++i) 
     {
-        player p(spawn.x, spawn.y);
+        player p(spawn.x, spawn.y, character);  
         players.append(p);
     }
     
@@ -53,6 +55,7 @@ void Game::load_from_save(const GameSaveData& data)
     current_seed = data.seed;
     current_layout = (LayoutStyle)data.layout_style;
     current_connection = (ConnectionStyle)data.connection_style;
+    current_character = (CharacterType)data.character_type;
     
     // Reconstruir con los mismos estilos
     world.create_world(data.seed, current_layout, current_connection);
@@ -88,7 +91,7 @@ void Game::load_from_save(const GameSaveData& data)
     current_island->explorada = true;
     
     players.clear();
-    player p(data.player_position.x, data.player_position.y);
+    player p(data.player_position.x, data.player_position.y, current_character);
     players.append(p);
     
     camera.setSize(sf::Vector2f(1280, 720));
@@ -109,6 +112,7 @@ GameSaveData Game::get_save_data() const
     data.playtime_seconds = playtime;
     data.last_played = std::time(nullptr);
     data.player_position = players[0].get_position();
+    data.character_type = (int)current_character;
     
     for (auto* isla : world.get_all_islands()) 
     {
@@ -192,7 +196,7 @@ void Game::update(float dt)
     camera.setSize(sf::Vector2f(1280.0f * zoom, 720.0f * zoom));
 }
 
-void Game::draw(sf::RenderWindow& window) 
+void Game::draw(sf::RenderWindow& window) // ===============================================
 {
     window.clear(sf::Color(135, 206, 235));
     
@@ -229,16 +233,8 @@ void Game::draw(sf::RenderWindow& window)
     if (is_transitioning) window.draw(fade_rect);
 }
 
-void Game::draw_map(sf::RenderWindow& window, bool fullscreen) 
+void Game::draw_map(sf::RenderWindow& window, bool fullscreen) // =============================
 {
-      // ✅ Diagnóstico temporal
-    std::cout << "[MAP] Islas en all_islands: " << world.get_all_islands().size() << std::endl;
-    for (auto* isla : world.get_all_islands()) 
-    {
-        std::cout << "  Isla " << isla->id 
-                  << " pos=(" << isla->posicion.x << ", " << isla->posicion.y << ")"
-                  << " radio=" << isla->radio << std::endl;
-    }
     // Guardar la vista anterior y usar una apropiada
     sf::View map_view;
     if (fullscreen) 
@@ -289,6 +285,7 @@ void Game::draw_map(sf::RenderWindow& window, bool fullscreen)
 
 void Game::draw_day_night_overlay(sf::RenderWindow& window) 
 {
+    bool has_night_vision = (current_character == CharacterType::MANGA);
     window.setView(camera); // Usar la misma vista que el mundo
     
     sf::Color overlay_color = sf::Color::Transparent;
@@ -343,6 +340,10 @@ void Game::draw_day_night_overlay(sf::RenderWindow& window)
         alpha = 180.0f * (1.0f - t);
     }
     
+    if (has_night_vision && time_of_day >= 0.6f) 
+    {
+        alpha *= 0.25f;  // Reducir al 25%
+    }
     overlay_color.a = static_cast<std::uint8_t>(alpha);
     
     // Rectángulo que cubre toda la pantalla (en coordenadas de mundo)
@@ -411,24 +412,19 @@ void Game::handle_interact()
         {
             players[0].try_climb(target_prop);
         } 
-        else 
+        else if (target_prop->type == PropType::STONE) 
         {
-            // Recolectar directo (piedra, mora)
             const auto& cfg = get_prop_config(target_prop->type);
             ItemType item = prop_type_to_item(target_prop->type);
-            int added = players[0].get_inventory().add_item(item, cfg.harvest_amount);
+    
+            // ✅ Kaiser obtiene el doble de piedra
+            int amount = cfg.harvest_amount;
+             if (current_character == CharacterType::KAISER) amount *= 2;
+    
+            int added = players[0].get_inventory().add_item(item, amount);
             if (added > 0) 
             {
-                if (cfg.respawn_days > 0.0f) 
-                {
-                    target_prop->state = PropState::DEPLETED;
-                    target_prop->respawn_at_playtime =
-                        playtime + cfg.respawn_days * day_duration_seconds;
-                } 
-                else 
-                {
-                    target_prop->state = PropState::GONE;
-                }
+                target_prop->state = PropState::GONE;
             }
         }
         return;
@@ -445,6 +441,86 @@ void Game::handle_interact()
         transition_timer = 0.0f;
         players[0].reduce_sanity(10.0f);   // Cruzar cadena baja cordura
     }
+}
+
+void Game::draw_clock(sf::RenderWindow& window) 
+{
+    window.setView(window.getDefaultView());
+    
+    const float clock_radius = 80.0f;
+    const sf::Vector2f clock_center(1280.0f - 100.0f, 720.0f - 100.0f);
+    
+    // Fondo circular
+    sf::CircleShape bg(clock_radius);
+    bg.setOrigin(sf::Vector2f(clock_radius, clock_radius));
+    bg.setPosition(clock_center);
+    bg.setFillColor(sf::Color(20, 20, 30, 220));
+    bg.setOutlineColor(sf::Color(200, 200, 200, 200));
+    bg.setOutlineThickness(3.0f);
+    window.draw(bg);
+    
+    // Marcas de las horas (cada 3h = 8 marcas)
+    for (int i = 0; i < 8; ++i) 
+    {
+        float angle = i * (360.0f / 8.0f) * 3.14159265f / 180.0f - 3.14159265f / 2.0f;
+        sf::RectangleShape mark(sf::Vector2f(3.0f, (i % 2 == 0) ? 12.0f : 6.0f));
+        mark.setOrigin(sf::Vector2f(1.5f, (i % 2 == 0) ? 12.0f : 6.0f));
+        mark.setPosition(clock_center);
+        mark.setRotation(sf::radians(angle + 3.14159265f / 2.0f));
+        mark.setFillColor(sf::Color(200, 200, 200));
+        // Mover la marca hacia el borde
+        mark.move(sf::Vector2f(std::cos(angle) * (clock_radius - 12.0f),
+                                std::sin(angle) * (clock_radius - 12.0f)));
+        window.draw(mark);
+    }
+    
+    // Manecilla (apunta al "sol" en el cielo)
+    // 0.0 = amanecer (izq), 0.25 = mediodía (arriba), 0.5 = atardecer (der), 0.75 = medianoche (abajo)
+    float angle_rad = 3.14159265f + time_of_day * 2.0f * 3.14159265f;
+    sf::RectangleShape hand(sf::Vector2f(clock_radius * 0.7f, 3.0f));
+    hand.setOrigin(sf::Vector2f(0.0f, 1.5f));
+    hand.setPosition(clock_center);
+    hand.setRotation(sf::radians(angle_rad));
+    hand.setFillColor(sf::Color(255, 220, 100));
+    window.draw(hand);
+    
+    // Sol o luna en el centro
+    sf::CircleShape celestial(12.0f);
+    celestial.setOrigin(sf::Vector2f(12.0f, 12.0f));
+    celestial.setPosition(clock_center);
+    bool is_day = (time_of_day >= 0.05f && time_of_day < 0.55f);
+    celestial.setFillColor(is_day ? sf::Color(255, 220, 100) : sf::Color(200, 200, 220));
+    window.draw(celestial);
+    
+    // Texto con hora (HH:MM)
+    // Convertir time_of_day (0.0=6:00) a hora del día
+    float hour_float = (time_of_day * 24.0f + 6.0f);
+    if (hour_float >= 24.0f) hour_float -= 24.0f;
+    int hour = (int)hour_float;
+    int minute = (int)((hour_float - hour) * 60.0f);
+    
+    char time_str[16];
+    snprintf(time_str, sizeof(time_str), "%02d:%02d", hour, minute);
+    
+    sf::Text time_text(*font, time_str, 14);
+    time_text.setFillColor(sf::Color::White);
+    time_text.setOutlineColor(sf::Color::Black);
+    time_text.setOutlineThickness(2.0f);
+    sf::FloatRect tb = time_text.getLocalBounds();
+    time_text.setOrigin(sf::Vector2f(tb.size.x / 2.0f, 0));
+    time_text.setPosition(sf::Vector2f(clock_center.x, clock_center.y + clock_radius + 5));
+    window.draw(time_text);
+    
+    // Contador de días
+    int day_count = (int)playtime / (int)day_duration_seconds;
+    sf::Text day_text(*font, "Dia " + std::to_string(day_count + 1), 12);
+    day_text.setFillColor(sf::Color(200, 200, 200));
+    day_text.setOutlineColor(sf::Color::Black);
+    day_text.setOutlineThickness(2.0f);
+    sf::FloatRect db = day_text.getLocalBounds();
+    day_text.setOrigin(sf::Vector2f(db.size.x / 2.0f, 0));
+    day_text.setPosition(sf::Vector2f(clock_center.x, clock_center.y - clock_radius - 20));
+    window.draw(day_text);
 }
 
 void Game::draw_stats_hud(sf::RenderWindow& window) 
@@ -589,6 +665,7 @@ void Game::draw_hud(sf::RenderWindow& window)
     draw_stats_hud(window);
     draw_inventory_hud(window);
     draw_interaction_prompt(window);
+    draw_clock(window);
 }
 
 const PlayerStats& Game::get_stats() const { return players[0].get_stats(); }

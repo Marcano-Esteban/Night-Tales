@@ -48,11 +48,15 @@ private:
     LayoutStyle current_layout = LayoutStyle::PARENT_RADIAL;
     ConnectionStyle current_connection = ConnectionStyle::TREE_SHORTCUTS;
 
+    CharacterType current_character = CharacterType::MANGA;
+    void draw_clock(sf::RenderWindow& window);
+
 public:
     Game();
     void init(sf::Font& f);
     
-    void start_new_game(const std::string& world_name, unsigned int seed, int player_count, LayoutStyle layout, ConnectionStyle connection);
+    void start_new_game(const std::string& world_name, unsigned int seed, int player_count,
+                        LayoutStyle layout, ConnectionStyle connection, CharacterType character);
     void load_from_save(const GameSaveData& data);
     GameSaveData get_save_data() const;
     
@@ -69,6 +73,7 @@ public:
     float get_time_of_day() const { return time_of_day; }
     unsigned int get_seed() const { return current_seed; }
     std::string get_world_name() const { return current_world_name; }
+    CharacterType get_character() const { return current_character; }
     sf::Vector2f get_player_position() const;
     const PlayerStats& get_stats() const;
 };

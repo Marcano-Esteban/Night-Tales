@@ -5,6 +5,7 @@
 #include "../include/game.hpp"
 #include "../include/save_manager.hpp"
 #include "../include/utilyties.hpp"
+#include "../include/character.hpp"
 
 std::string layout_to_string(LayoutStyle l) 
 {
@@ -33,6 +34,7 @@ enum class AppState
 {
     MAIN_MENU,
     NEW_GAME_MENU,
+    CHARACTER_SELECT,
     LOAD_GAME_MENU,
     PLAYING,
     PAUSED
@@ -51,6 +53,7 @@ int main()
     AppState state = AppState::MAIN_MENU;
     
     // Estado de los menús
+    int char_select_index = 0;  // 0=Manga, 1=Kaiser
     int selected_option = 0;
     int load_selected = 0;
     std::string world_name_input;
@@ -134,14 +137,10 @@ int main()
                         } 
                         else 
                         {
-                            unsigned int final_seed = seed_input.empty() ? (unsigned int)std::time(nullptr) : std::stoul(seed_input);
+                            current_save_filename = SaveManager::sanitize_name(world_name_input); // Sanitizar nombre y guardar
 
-                            // Sanitizar nombre y guardar
-                            current_save_filename = SaveManager::sanitize_name(world_name_input);
-                            
-                            game.start_new_game(world_name_input, final_seed, 1,  selected_layout, selected_connection);
-                            save_mgr.save_game(current_save_filename, game.get_save_data());
-                            state = AppState::PLAYING;
+                            char_select_index = 0;
+                            state = AppState::CHARACTER_SELECT;
                         }
                     } 
                     else if (textEvent->unicode >= 32 && textEvent->unicode < 128) 
@@ -249,6 +248,26 @@ int main()
                     }
                 }
             }
+            else if (state == AppState::CHARACTER_SELECT) 
+            {
+                if (const auto* key = event->getIf<sf::Event::KeyPressed>()) 
+                {
+                    if (key->code == sf::Keyboard::Key::Left) char_select_index = 0;
+                    if (key->code == sf::Keyboard::Key::Right) char_select_index = 1;
+                    if (key->code == sf::Keyboard::Key::Escape) state = AppState::NEW_GAME_MENU;
+                    if (key->code == sf::Keyboard::Key::Enter) 
+                    {
+                        CharacterType chosen = (CharacterType)char_select_index;
+                        unsigned int final_seed = seed_input.empty() ? (unsigned int)std::time(nullptr) : std::stoul(seed_input);
+                       
+                        game.start_new_game(world_name_input, final_seed, 1,
+                                selected_layout, selected_connection, chosen);
+
+                        save_mgr.save_game(current_save_filename, game.get_save_data());
+                        state = AppState::PLAYING;
+                    }
+                }
+            }
         }
         
         // Actualizar
@@ -324,6 +343,61 @@ int main()
                 }
                 m += "\n↑↓ navegar, ENTER cargar, DEL borrar, ESC volver";
                 menu_text.setString(m);
+            }
+            else if (state == AppState::CHARACTER_SELECT) 
+            {
+                sf::Text title(font, "=== ELIGE TU PERSONAJE ===", 28);
+                title.setPosition(sf::Vector2f(400, 50));
+                window.draw(title);
+    
+                // Dos cartas
+                for (int i = 0; i < 2; ++i) 
+                {
+                    CharacterType type = (CharacterType)i;
+                    const auto& def = get_character_def(type);
+        
+                    float x = 200.0f + i * 500.0f;
+                    float y = 150.0f;
+        
+                    // Fondo de la carta
+                    sf::RectangleShape card(sf::Vector2f(400, 450));
+                    card.setPosition(sf::Vector2f(x, y));
+                    card.setFillColor(i == char_select_index ? sf::Color(50, 50, 80) : sf::Color(30, 30, 40));
+                    card.setOutlineColor(i == char_select_index ? sf::Color::Yellow : sf::Color(100, 100, 100));
+                    card.setOutlineThickness(4.0f);
+                    window.draw(card);
+        
+                    // Nombre
+                    sf::Text name(font, def.name, 32);
+                    name.setFillColor(def.color);
+                    name.setPosition(sf::Vector2f(x + 20, y + 20));
+                    window.draw(name);
+        
+                    // Descripción
+                    sf::Text desc(font, def.description, 14);
+                    desc.setFillColor(sf::Color(220, 220, 220));
+                    desc.setPosition(sf::Vector2f(x + 20, y + 70));
+                    window.draw(desc);
+        
+                    // Stats
+                    std::string stats_str = 
+                    "Vida: " + std::to_string((int)def.max_health) + " HP\n\n" +
+                    "Cordura: " + std::to_string((int)def.max_sanity) + "\n\n" +
+                    "Velocidad: x" + std::to_string(def.speed_mult).substr(0, 4) + "\n\n" +
+                    "Escalada: " + (def.climb_speed_mult >= 2.0f ? "Rapida (x2)" : "Normal") + "\n\n" +
+                    "Recoleccion: +" + std::to_string(def.harvest_bonus) + "\n\n" +
+                    "Inventario: " + std::to_string(def.inventory_slots) + " slots\n\n" +
+                    "Habilidad: " + std::string(get_ability_description(def.ability));
+        
+                    sf::Text stats_text(font, stats_str, 16);
+                    stats_text.setFillColor(sf::Color::White);
+                    stats_text.setPosition(sf::Vector2f(x + 20, y + 150));
+                    window.draw(stats_text);
+                }
+    
+                sf::Text hint(font, "← → para elegir, ENTER para confirmar, ESC para volver", 16);
+                hint.setPosition(sf::Vector2f(400, 650));
+                window.draw(hint);
             }
             window.draw(menu_text);
         }

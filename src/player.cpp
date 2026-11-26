@@ -2,13 +2,25 @@
 #include <cmath>
 #include <algorithm>
 
-player::player(float x, float y) : position(x, y), speed(200.0f), radius(10.0f), can_walk(false), inventory(6)
-    
+player::player(float x, float y, CharacterType type): position(x, y), character(type),
+    speed(200.0f), radius(10.0f), can_walk(false),  inventory(get_character_def(type).inventory_slots)
 {
+    const auto& def = get_character_def(type);
+    
+    speed = 200.0f * def.speed_mult;
+    climb_duration_up = 1.5f / def.climb_speed_mult;
+    climb_duration_down = 1.5f / def.climb_speed_mult;
+    
+    stats.max_health = def.max_health;
+    stats.health = def.max_health;
+    stats.max_sanity = def.max_sanity;
+    stats.sanity = def.max_sanity;
+    hunger_decay_per_second = def.hunger_decay;
+    
     shape.setRadius(radius);
     shape.setOrigin(sf::Vector2f(radius, radius));
-    shape.setFillColor(sf::Color(255, 200, 50));
-    shape.setOutlineColor(sf::Color(150, 100, 0));
+    shape.setFillColor(def.color);
+    shape.setOutlineColor(sf::Color(60, 60, 60));
     shape.setOutlineThickness(2.0f);
 }
 
@@ -41,11 +53,11 @@ void player::update(float dt, float playtime, const height_map& map, float tile_
     if (state == PlayerState::CLIMBING) 
     {
         climb_timer += dt;
-        float progress = std::min(1.0f, climb_timer / CLIMB_UP_DURATION);
+        float progress = std::min(1.0f, climb_timer / climb_duration_up);
         int alpha = (int)(255 * (1.0f - progress));
         shape.setFillColor(sf::Color(255, 200, 50, alpha));
 
-        if (climb_timer >= CLIMB_UP_DURATION) 
+        if (climb_timer >= climb_duration_up) 
         {
             state = PlayerState::AT_TOP;
             climb_timer = 0.0f;
@@ -65,7 +77,8 @@ void player::update(float dt, float playtime, const height_map& map, float tile_
                 const auto& cfg = get_prop_config(climbing_target->type);
                 ItemType item = prop_type_to_item(climbing_target->type);
 
-                int added = inventory.add_item(item, cfg.harvest_amount);
+                int total_harvest = cfg.harvest_amount + get_character_def(character).harvest_bonus;
+                int added = inventory.add_item(item, total_harvest);
                 if (added > 0) 
                 {
                     if (cfg.respawn_days > 0.0f) 
@@ -89,11 +102,11 @@ void player::update(float dt, float playtime, const height_map& map, float tile_
     if (state == PlayerState::DESCENDING) 
     {
         climb_timer += dt;
-        float progress = std::min(1.0f, climb_timer / CLIMB_DOWN_DURATION);
+        float progress = std::min(1.0f, climb_timer / climb_duration_down);
         int alpha = (int)(255 * progress);
         shape.setFillColor(sf::Color(255, 200, 50, alpha));
 
-        if (climb_timer >= CLIMB_DOWN_DURATION) 
+        if (climb_timer >= climb_duration_down) 
         {
             state = PlayerState::NORMAL;
             climbing_target = nullptr;
@@ -164,6 +177,12 @@ bool player::try_climb(Prop* tree)
     state = PlayerState::CLIMBING;
     climb_timer = 0.0f;
     return true;
+}
+
+
+UniqueAbility player::get_unique_ability() const 
+{
+    return get_character_def(character).ability;
 }
 
 void player::set_position(sf::Vector2f new_pos) 

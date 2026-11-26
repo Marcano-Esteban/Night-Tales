@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 
 namespace fs = std::filesystem;
-
+ 
 SaveManager::SaveManager(const std::string& dir) : saves_dir(dir) 
 {
     std::filesystem::create_directories(saves_dir);  // Multiplataforma
@@ -102,6 +102,7 @@ bool SaveManager::save_game(const std::string& filename, const GameSaveData& dat
     file << "game_time=" << data.time_of_day << "\n";
     file << "playtime=" << data.playtime_seconds << "\n";
     file << "last_played=" << data.last_played << "\n";
+    file << "character=" << data.character_type << "\n";
 
     file << "[PLAYER]\n";
     file << "pos_x=" << data.player_position.x << "\n";
@@ -139,6 +140,7 @@ bool SaveManager::load_game(const std::string& filename, GameSaveData& out) cons
         if (line.find("playtime=") == 0) out.playtime_seconds = std::stof(line.substr(9));
         if (line.find("pos_x=") == 0) out.player_position.x = std::stof(line.substr(6));
         if (line.find("pos_y=") == 0) out.player_position.y = std::stof(line.substr(6));
+        if (line.find("character=") == 0) out.character_type = std::stoi(line.substr(10));
 
         if (line.find("island=") == 0) 
         {

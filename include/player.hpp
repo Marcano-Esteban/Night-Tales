@@ -53,6 +53,10 @@ private:
 public:
     player(float x, float y, CharacterType type = CharacterType::MANGA);
     void update(float dt, float playtime, const height_map& map, float tile_size,Designar::DynArray<Prop>& props);
+
+    bool eat_first_food();
+    void add_hunger(float amount) { stats.hunger = std::min(stats.max_hunger, stats.hunger + amount); }
+    void add_sanity(float amount) { stats.sanity = std::min(stats.max_sanity, stats.sanity + amount); }
      
     void set_position(sf::Vector2f new_pos);
     void draw(sf::RenderWindow& window);

@@ -283,7 +283,7 @@ void Game::draw_map(sf::RenderWindow& window, bool fullscreen) // ==============
     window.setView(window.getDefaultView());
 }
 
-void Game::draw_day_night_overlay(sf::RenderWindow& window) 
+void Game::draw_day_night_overlay(sf::RenderWindow& window) //==================================
 {
     bool has_night_vision = (current_character == CharacterType::MANGA);
     window.setView(camera); // Usar la misma vista que el mundo
@@ -368,7 +368,10 @@ Prop* Game::find_interactable_prop()
     {
         if (prop.state == PropState::GONE) continue;
         if (prop_type_to_item(prop.type) == ItemType::NONE) continue;
-        if (prop.type != PropType::TREE && prop.state != PropState::AVAILABLE) continue;
+
+        // Los 3 tipos de árbol son interactuables en cualquier estado
+        bool is_tree = (prop.type == PropType::TREE || prop.type == PropType::MANGO_TREE || prop.type == PropType::LIANA_TREE);           
+        if (!is_tree && prop.state != PropState::AVAILABLE) continue;
 
         float dx = players[0].get_position().x - prop.position.x;
         float dy = players[0].get_position().y - prop.position.y;
@@ -408,29 +411,44 @@ void Game::handle_interact()
     Prop* target_prop = find_interactable_prop();
     if (target_prop) 
     {
-        if (target_prop->type == PropType::TREE) 
+        // Los 3 tipos de árbol se escalan
+        bool is_tree = (target_prop->type == PropType::TREE || target_prop->type == PropType::MANGO_TREE ||  target_prop->type == PropType::LIANA_TREE);
+                        
+                       
+                    
+        if (is_tree) 
         {
             players[0].try_climb(target_prop);
         } 
-        else if (target_prop->type == PropType::STONE) 
+        else if (target_prop->type == PropType::STONE || target_prop->type == PropType::LARGE_ROCK ||
+                    target_prop->type == PropType::BERRY_BUSH || target_prop->type == PropType::DREAM_FLOWER) 
+                 
         {
             const auto& cfg = get_prop_config(target_prop->type);
             ItemType item = prop_type_to_item(target_prop->type);
-    
-            // ✅ Kaiser obtiene el doble de piedra
+        
             int amount = cfg.harvest_amount;
-             if (current_character == CharacterType::KAISER) amount *= 2;
-    
+            if (current_character == CharacterType::KAISER && (target_prop->type == PropType::STONE || target_prop->type == PropType::LARGE_ROCK))
+                amount *= 2;
+        
             int added = players[0].get_inventory().add_item(item, amount);
             if (added > 0) 
             {
-                target_prop->state = PropState::GONE;
+                if (cfg.respawn_days > 0.0f) 
+                {
+                    target_prop->state = PropState::DEPLETED;
+                    target_prop->respawn_at_playtime = playtime + cfg.respawn_days * day_duration_seconds;
+                } 
+                else 
+                {
+                    target_prop->state = PropState::GONE;
+                }
             }
         }
-        return;
+        return;  // ← Si hubo prop, no pasa a portales
     }
 
-    // 2. Portales
+    // 2. Si NO hubo prop, comprobar portales
     Island* target = nullptr;
     sf::Vector2f spawn;
     if (find_interactable_portal(&target, &spawn)) 
@@ -439,7 +457,7 @@ void Game::handle_interact()
         target_spawn = spawn;
         is_transitioning = true;
         transition_timer = 0.0f;
-        players[0].reduce_sanity(10.0f);   // Cruzar cadena baja cordura
+        players[0].reduce_sanity(10.0f);
     }
 }
 
@@ -587,6 +605,8 @@ void Game::draw_inventory_hud(sf::RenderWindow& window)
             case ItemType::STONE:       item_color = sf::Color(150, 150, 150); break;
             case ItemType::BERRY:       item_color = sf::Color(200, 50, 100); break;
             case ItemType::MANGO:       item_color = sf::Color(255, 200, 50); break;
+            case ItemType::LIANA:        item_color = sf::Color(120, 180, 80); break;
+            case ItemType::DREAM_FLOWER: item_color = sf::Color(200, 100, 255); break;
             default:                    item_color = sf::Color::White; break;
         }
         
@@ -625,18 +645,32 @@ void Game::draw_interaction_prompt(sf::RenderWindow& window)
     std::string prompt_text = "[E] ";
     if (target_prop) 
     {
-        if (target_prop->type == PropType::TREE) 
+        switch (target_prop->type) 
         {
-            prompt_text += (target_prop->state == PropState::AVAILABLE)
-                ? "Escalar arbol" : "Escalar (sin ramas)";
-        } 
-        else if (target_prop->type == PropType::STONE) 
-        {
-            prompt_text += "Recoger piedra";
-        } 
-        else if (target_prop->type == PropType::BERRY_BUSH) 
-        {
-            prompt_text += "Recoger moras";
+            case PropType::TREE:
+                prompt_text += (target_prop->state == PropState::AVAILABLE) ? "Escalar arbol" : "Escalar (sin ramas)";
+                break;
+            case PropType::MANGO_TREE:
+                prompt_text += (target_prop->state == PropState::AVAILABLE) ? "Escalar mango" : "Escalar (sin frutas)";
+                break;
+            case PropType::LIANA_TREE:
+                prompt_text += (target_prop->state == PropState::AVAILABLE) ? "Escalar lianas" : "Escalar (sin lianas)";
+                break;
+            case PropType::STONE:
+                prompt_text += "Recoger piedra";
+                break;
+            case PropType::LARGE_ROCK:
+                prompt_text += "Romper roca";
+                break;
+            case PropType::BERRY_BUSH:
+                prompt_text += "Recoger moras";
+                break;
+            case PropType::DREAM_FLOWER:
+                prompt_text += "Recoger flor de sueno";
+                break;
+            default:
+                prompt_text += "Interactuar";
+                break;
         }
     } 
     else if (has_portal) 
@@ -657,6 +691,12 @@ void Game::draw_interaction_prompt(sf::RenderWindow& window)
     prompt.setOrigin(sf::Vector2f(bounds.size.x / 2.0f, bounds.size.y));
     prompt.setPosition(sf::Vector2f(player_pos.x, player_pos.y - 30.0f));
     window.draw(prompt);
+}
+
+void Game::handle_eat() 
+{
+    if (players[0].is_busy() || is_transitioning) return;
+    players[0].eat_first_food();
 }
 
 void Game::draw_hud(sf::RenderWindow& window) 

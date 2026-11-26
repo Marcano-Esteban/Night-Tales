@@ -4,11 +4,14 @@
 
 enum class PropType 
 {
-    TREE,           // Madera, renovable
-    FLOWER,         // Decorativo, no recolectable
-    STONE,          // Piedra, no renovable
-    BERRY_BUSH,     // Bayas, renovable
-    // ← AÑADIR MÁS AQUÍ
+    TREE,           // Árbol normal (ramas)
+    MANGO_TREE,     // Árbol de mango
+    LIANA_TREE,     // Árbol con lianas
+    FLOWER,         // Flor decorativa
+    DREAM_FLOWER,   // Flor de sueño (rara)
+    STONE,          // Piedra
+    LARGE_ROCK,     // Roca grande
+    BERRY_BUSH,     // Arbusto de moras
 };
 
 enum class PropState 

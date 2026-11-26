@@ -64,6 +64,7 @@ public:
     void draw_hud(sf::RenderWindow& window);
     void draw(sf::RenderWindow& window);
     void draw_day_night_overlay(sf::RenderWindow& window);
+    void handle_eat();
     void handle_interact();
     float get_playtime() const { return playtime; }
     

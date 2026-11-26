@@ -33,15 +33,28 @@ bool player::is_valid_position(float x, float y, const height_map& map,float til
         
     if (map.at(tile_x, tile_y) <= 0.35f) return false;
 
-    for (const auto& prop : props) 
+   for (const auto& prop : props) 
     {
-        if (prop.type == PropType::TREE && prop.state == PropState::AVAILABLE) 
+        bool is_tree = (prop.type == PropType::TREE || 
+                    prop.type == PropType::MANGO_TREE || 
+                    prop.type == PropType::LIANA_TREE);
+
+        // Los árboles colisionan SIEMPRE (aunque estén agotados)
+        if (is_tree)
         {
             float tree_center_y = prop.position.y - (tile_size * 0.35f);
             float dx = x - prop.position.x;
             float dy = y - tree_center_y;
             float dist = std::sqrt(dx*dx + dy*dy);
             if (dist < radius + prop.collision_radius) return false;
+        }
+
+        // Roca grande
+        if (prop.type == PropType::LARGE_ROCK) 
+        {
+            float dx = x - prop.position.x;
+            float dy = y - prop.position.y;
+            if (std::sqrt(dx*dx + dy*dy) < radius + prop.collision_radius) return false;
         }
     }
     return true;
@@ -160,23 +173,46 @@ void player::update(float dt, float playtime, const height_map& map, float tile_
 bool player::try_climb(Prop* tree) 
 {
     if (state != PlayerState::NORMAL) return false;
-    if (!tree || tree->type != PropType::TREE) return false;
+    if (!tree) return false;
+
+    // ✅ Aceptar los 3 tipos de árbol
+    bool is_tree = (tree->type == PropType::TREE ||tree->type == PropType::MANGO_TREE || tree->type == PropType::LIANA_TREE);
+                    
+                    
+    if (!is_tree) return false;
     if (tree->state == PropState::GONE) return false;
 
-
-    // Solo verificar si cave en el inventario si el árbol TIENE ramas
+    // Solo verificar inventario si el árbol TIENE recursos
     if (tree->state == PropState::AVAILABLE) 
     {
         const auto& cfg = get_prop_config(tree->type);
         ItemType item = prop_type_to_item(tree->type);
-
-        if (inventory.free_space_for(item, cfg.harvest_amount) < cfg.harvest_amount) return false;
+        if (inventory.free_space_for(item, cfg.harvest_amount) < cfg.harvest_amount) 
+            return false;
     }
-        
+
     climbing_target = tree;
     state = PlayerState::CLIMBING;
     climb_timer = 0.0f;
     return true;
+}
+
+bool player::eat_first_food() 
+{
+    const auto& slots = inventory.get_slots();
+    for (int i = 0; i < slots.size(); ++i) 
+    {
+        if (slots[i].is_empty()) continue;
+        const auto& def = get_item_def(slots[i].type);
+        if (!def.is_edible()) continue;
+        
+        // Comer 1 unidad
+        inventory.remove_item(slots[i].type, 1);
+        add_hunger(def.hunger_restore);
+        add_sanity(def.sanity_restore);
+        return true;
+    }
+    return false;
 }
 
 

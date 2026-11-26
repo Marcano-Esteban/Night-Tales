@@ -2,6 +2,18 @@
 
 terrain_generator::terrain_generator(int width, int height, unsigned int seed)
 : noise(seed), _height_map(width, height), _vertices_dirty(true), rng(seed) {}
+
+static sf::Color get_random_flower_color() 
+{
+    static const sf::Color colors[] = {
+        sf::Color::Yellow,
+        sf::Color(255, 105, 180),  // Rosa
+        sf::Color::White,
+        sf::Color(180, 120, 255),  // Púrpura
+        sf::Color(255, 150, 100),  // Naranja
+    };
+    return colors[rand() % 5];
+}
    
 void terrain_generator::generate(float frequency, float seaLevel) 
 {
@@ -204,49 +216,99 @@ void terrain_generator::generate_props(float tile_size, Designar::DynArray<Prop>
 {
     out.clear();
     
-    // Distribución uniforme para probabilidades (0.0 a 1.0)
     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
-
+    
+    // ✅ Primero: decidir si esta isla tiene flor de sueño (1% de probabilidad)
+    bool island_has_dream_flower = (dist(rng) < 0.01f);
+    bool island_has_flower_field = (dist(rng) < 0.05f);
+    
+    // Posición aleatoria para el campo de flores (si existe)
+    int field_center_x = rng() % _height_map.width;
+    int field_center_y = rng() % _height_map.height;
+    
     for (int y = 0; y < _height_map.height; ++y) 
     {
         for (int x = 0; x < _height_map.width; ++x) 
         {
             float height = _height_map.at(x, y);
-            
-            // Coordenadas del mundo (centradas)
             float world_x = (x - _height_map.width / 2.0f) * tile_size;
             float world_y = (y - _height_map.height / 2.0f) * tile_size;
-
-            if (height > 0.42f && height < 0.75f && dist(rng) < 0.02f) // ÁRBOLES: Solo en pasto/bosque (altura entre 0.42 y 0.75) 2% de probabilidad por tile
+            
+            float offset_x = (dist(rng) - 0.5f) * tile_size;
+            float offset_y = (dist(rng) - 0.5f) * tile_size;
+            sf::Vector2f pos(world_x + offset_x, world_y + offset_y);
+            
+            // === FLOR DE SUEÑO (1% por isla, en zona de pasto) ===
+            if (island_has_dream_flower && 
+                height > 0.42f && height < 0.65f && 
+                dist(rng) < 0.001f) 
             {
-                // Un poco de aleatoriedad en la posición para que no se vean cuadriculados
-                float offset_x = (dist(rng) - 0.5f) * tile_size;
-                float offset_y = (dist(rng) - 0.5f) * tile_size;
-                
-                out.append({
-                    sf::Vector2f(world_x + offset_x, world_y + offset_y),
-                    PropType::TREE,
-                    tile_size * 0.3f, // Radio de colisión (30% del tamaño del tile)
-                    sf::Color::White
-                });
+                out.append({pos, PropType::DREAM_FLOWER, tile_size * 0.1f, sf::Color(200, 100, 255)});
+                island_has_dream_flower = false; // Solo una
+                continue;
             }
-            else if (height > 0.42f && height < 0.65f && dist(rng) < 0.03f) // FLORES: En pasto (altura entre 0.42 y 0.65) 3% de probabilidad
-            {
-                float offset_x = (dist(rng) - 0.5f) * tile_size;
-                float offset_y = (dist(rng) - 0.5f) * tile_size;
-
-                sf::Color flower_color;
-                int color_choice = rand() % 3; 
-                if (color_choice == 0) flower_color = sf::Color::Yellow;
-                else if (color_choice == 1) flower_color = sf::Color(255, 105, 180); // Rosa
-                else flower_color = sf::Color::White;
+            
+            // === CAMPO DE FLORES (grupo de flores en una zona) ===
+            if (island_has_flower_field && height > 0.42f && height < 0.65f) {
+                int dx = std::abs(x - field_center_x);
+                int dy = std::abs(y - field_center_y);
+                int radius_tiles = 8;
                 
-                out.append({
-                    sf::Vector2f(world_x + offset_x, world_y + offset_y),
-                    PropType::FLOWER,
-                    0.0f, // Sin colisión
-                    flower_color
-                });
+                if (dx < radius_tiles && dy < radius_tiles && dist(rng) < 0.4f) {
+                    // 10% de probabilidad de flor de sueño dentro del campo
+                    if (dist(rng) < 0.10f) {
+                        out.append({pos, PropType::DREAM_FLOWER, tile_size * 0.1f, sf::Color(200, 100, 255)});
+                    } else {
+                        out.append({pos, PropType::FLOWER, 0.0f, get_random_flower_color()});
+                    }
+                    continue;
+                }
+            }
+            
+            // === ÁRBOLES (TREE, MANGO_TREE o LIANA_TREE) ===
+            if (height > 0.42f && height < 0.75f && dist(rng) < 0.02f) 
+            {
+                float roll = dist(rng);
+                PropType tree_type = PropType::TREE;
+                sf::Color color = sf::Color::White;
+                
+                if (roll < 0.10f) {
+                    tree_type = PropType::MANGO_TREE;
+                    color = sf::Color(255, 180, 60);  // Naranja
+                } else if (roll < 0.20f) {
+                    tree_type = PropType::LIANA_TREE;
+                    color = sf::Color(120, 180, 80);  // Verde claro
+                }
+                
+                out.append({pos, tree_type, tile_size * 0.3f, color});
+                continue;
+            }
+            
+            // === FLORES SUELTAS (decorativas) ===
+            if (height > 0.42f && height < 0.65f && dist(rng) < 0.03f) 
+            {
+                out.append({pos, PropType::FLOWER, 0.0f, get_random_flower_color()});
+                continue;
+            }
+            
+            // === ARBUSTO DE MORAS (30% de probabilidad por isla, aquí 3%) ===
+            if (height > 0.42f && height < 0.55f && dist(rng) < 0.03f) 
+            {
+                out.append({pos, PropType::BERRY_BUSH, tile_size * 0.2f, sf::Color(100, 50, 150)});
+                continue;
+            }
+            
+            // === ROCA GRANDE (zonas altas, 1% de probabilidad) ===
+            if (height > 0.55f && height < 0.85f && dist(rng) < 0.01f) 
+            {
+                out.append({pos, PropType::LARGE_ROCK, tile_size * 0.4f, sf::Color(100, 100, 110)});
+                continue;
+            }
+            
+            // === PIEDRA PEQUEÑA (zonas altas, 1.5%) ===
+            if (height > 0.55f && height < 0.85f && dist(rng) < 0.015f) 
+            {
+                out.append({pos, PropType::STONE, tile_size * 0.25f, sf::Color(120, 120, 130)});
             }
         }
     }
@@ -309,6 +371,116 @@ void terrain_generator::draw_props(sf::RenderWindow& window, const Designar::Dyn
             // Colores aleatorios para las flores (amarillo, rosa, blanco)
             flower.setFillColor(prop.color);
             window.draw(flower);
+        }
+        else if (prop.type == PropType::MANGO_TREE) 
+        {
+            // Tronco (siempre)
+            trunk.setSize(sf::Vector2f(tile_size * 0.2f, tile_size * 0.7f));
+            trunk.setFillColor(sf::Color(101, 67, 33));
+            trunk.setOrigin(sf::Vector2f(tile_size * 0.1f, tile_size * 0.7f));
+            trunk.setPosition(prop.position);
+            window.draw(trunk);
+    
+            // Copa (siempre, pero apagada si está agotado)
+            float r = tile_size * 0.4f;
+            canopy.setRadius(r);
+            canopy.setOrigin(sf::Vector2f(r, r));
+            canopy.setFillColor(prop.state == PropState::AVAILABLE 
+                ? sf::Color(34, 139, 34)      // Verde brillante
+                : sf::Color(60, 100, 60));    // Verde apagado
+            canopy.setPosition(sf::Vector2f(prop.position.x, prop.position.y - tile_size * 0.6f));
+            window.draw(canopy);
+    
+            // Mangos SOLO si está disponible
+            if (prop.state == PropState::AVAILABLE) 
+            {
+                for (int i = 0; i < 3; ++i) 
+                {
+                    sf::CircleShape mango(tile_size * 0.08f);
+                    mango.setOrigin(sf::Vector2f(tile_size * 0.08f, tile_size * 0.08f));
+                    mango.setFillColor(sf::Color(255, 180, 60));
+                    mango.setPosition(sf::Vector2f(prop.position.x + (i - 1) * tile_size * 0.15f, prop.position.y - tile_size * 0.7f)); 
+                    window.draw(mango);
+                }
+            }
+        }
+        else if (prop.type == PropType::LIANA_TREE) 
+        {
+            // Tronco
+            trunk.setSize(sf::Vector2f(tile_size * 0.2f, tile_size * 0.7f));
+            trunk.setFillColor(sf::Color(101, 67, 33));
+            trunk.setOrigin(sf::Vector2f(tile_size * 0.1f, tile_size * 0.7f));
+            trunk.setPosition(prop.position);
+            window.draw(trunk);
+    
+            // Copa (siempre, más apagada si está agotado)
+            float r = tile_size * 0.4f;
+            canopy.setRadius(r);
+            canopy.setOrigin(sf::Vector2f(r, r));
+            canopy.setFillColor(prop.state == PropState::AVAILABLE 
+                ? sf::Color(120, 180, 80)     // Verde claro
+                : sf::Color(80, 120, 60));    // Verde oscuro
+            canopy.setPosition(sf::Vector2f(prop.position.x, prop.position.y - tile_size * 0.6f));
+            window.draw(canopy);
+    
+            // Lianas SOLO si está disponible
+            if (prop.state == PropState::AVAILABLE) 
+            {
+                sf::RectangleShape liana(sf::Vector2f(2.0f, tile_size * 0.5f));
+                liana.setFillColor(sf::Color(80, 140, 60));
+                liana.setPosition(sf::Vector2f( prop.position.x - tile_size * 0.2f, prop.position.y - tile_size * 0.4f));
+                window.draw(liana);
+        
+                sf::RectangleShape liana2(sf::Vector2f(2.0f, tile_size * 0.4f));
+                liana2.setFillColor(sf::Color(80, 140, 60));
+                liana2.setPosition(sf::Vector2f (prop.position.x + tile_size * 0.2f, prop.position.y - tile_size * 0.3f));  
+                window.draw(liana2);
+            }
+        }
+        else if (prop.type == PropType::DREAM_FLOWER) 
+        {
+            float r = tile_size * 0.12f;
+            flower.setRadius(r);
+            flower.setOrigin(sf::Vector2f(r, r));
+            flower.setPosition(prop.position);
+            flower.setFillColor(prop.color);
+            flower.setOutlineColor(sf::Color(255, 255, 255));
+            flower.setOutlineThickness(2.0f);
+            window.draw(flower);
+        }
+        else if (prop.type == PropType::LARGE_ROCK) 
+        {
+            float r = tile_size * 0.35f;
+            sf::CircleShape rock(r, 7);
+            rock.setOrigin(sf::Vector2f(r, r));
+            rock.setPosition(prop.position);
+            rock.setFillColor(prop.color);
+            rock.setOutlineColor(sf::Color(60, 60, 70));
+            rock.setOutlineThickness(2.0f);
+            window.draw(rock);
+        }
+        else if (prop.type == PropType::BERRY_BUSH) 
+        {
+            // Arbusto (círculo verde oscuro)
+            float r = tile_size * 0.25f;
+            sf::CircleShape bush(r, 6);
+            bush.setOrigin(sf::Vector2f(r, r));
+            bush.setPosition(prop.position);
+            bush.setFillColor(prop.color);
+            window.draw(bush);
+            
+            // Moras (puntos rojos si está disponible)
+            if (prop.state == PropState::AVAILABLE) {
+                for (int i = 0; i < 3; ++i) {
+                    sf::CircleShape berry(tile_size * 0.05f);
+                    berry.setOrigin(sf::Vector2f(tile_size * 0.05f, tile_size * 0.05f));
+                    berry.setFillColor(sf::Color(200, 50, 100));
+                    berry.setPosition(sf::Vector2f(
+                        prop.position.x + (i - 1) * tile_size * 0.1f,
+                        prop.position.y - tile_size * 0.1f));
+                    window.draw(berry);
+                }
+            }
         }
     }
 }

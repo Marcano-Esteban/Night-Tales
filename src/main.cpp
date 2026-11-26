@@ -216,7 +216,8 @@ int main()
                 {
                     if (key->code == sf::Keyboard::Key::Escape) state = AppState::PAUSED;
                     if (key->code == sf::Keyboard::Key::M) game.toggle_big_map();
-                    if (key->code == sf::Keyboard::Key::E) game.handle_interact();  
+                    if (key->code == sf::Keyboard::Key::E) game.handle_interact();
+                    if (key->code == sf::Keyboard::Key::F) game.handle_eat();   
                 }
             }
             else if (state == AppState::PAUSED) 
